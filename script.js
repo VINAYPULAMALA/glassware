@@ -1,54 +1,108 @@
-// Search functionality
 const searchBox = document.getElementById('searchBox');
 const categorySelect = document.getElementById('categorySelect');
-const productCards = document.querySelectorAll('.product-card');
+const resetFilters = document.getElementById('resetFilters');
+const activeFiltersEl = document.getElementById('activeFilters');
 const categories = document.querySelectorAll('.category');
 
-// Search input handler
-searchBox.addEventListener('input', function() {
-    const searchTerm = this.value.toLowerCase();
-    filterProducts(searchTerm, categorySelect.value);
-    updateStats();
-});
+const categoryLabels = {
+    all: 'All categories',
+    whisky: 'Whisky Glasses',
+    beer: 'Beer Mugs/Glasses',
+    vodka: 'Vodka Glasses',
+    wine: 'Wine/Cocktail Glasses',
+    water: 'Water Glasses',
+    cup: 'Cup Glasses',
+    decanters: 'Decanters',
+    accessories: 'Bar Accessories',
+    sippers: 'Sippers'
+};
 
-// Dropdown filter handler
-categorySelect.addEventListener('change', function() {
-    const categoryFilter = this.value;
-    filterProducts(searchBox.value.toLowerCase(), categoryFilter);
+function handleFilterChange() {
+    const searchTerm = searchBox.value.trim().toLowerCase();
+    const categoryFilter = categorySelect.value;
+    filterProducts(searchTerm, categoryFilter);
     updateStats();
-});
+    updateActiveFilters(searchTerm, categoryFilter);
+}
 
-// Filter products based on search and category
+searchBox.addEventListener('input', handleFilterChange);
+categorySelect.addEventListener('change', handleFilterChange);
+
+if (resetFilters) {
+    resetFilters.addEventListener('click', () => {
+        searchBox.value = '';
+        categorySelect.value = 'all';
+        handleFilterChange();
+        searchBox.focus();
+    });
+}
+
 function filterProducts(searchTerm, categoryFilter) {
     categories.forEach(category => {
         const categoryName = category.dataset.category;
-        let hasVisibleProducts = false;
         const cards = category.querySelectorAll('.product-card');
+        let hasVisibleProducts = false;
 
-        // Check if category should be shown
         const categoryMatch = categoryFilter === 'all' || categoryName === categoryFilter;
+        category.style.display = categoryMatch ? 'block' : 'none';
 
         if (!categoryMatch) {
-            category.style.display = 'none';
             return;
         }
 
         cards.forEach(card => {
-            const productName = card.querySelector('.product-name').textContent.toLowerCase();
-            if (productName.includes(searchTerm)) {
+            const nameEl = card.querySelector('.product-name');
+            if (!nameEl.dataset.rawName) {
+                nameEl.dataset.rawName = nameEl.textContent.trim();
+            }
+
+            const rawName = nameEl.dataset.rawName;
+            const matchesSearch = !searchTerm || rawName.toLowerCase().includes(searchTerm);
+
+            if (matchesSearch) {
                 card.style.display = 'block';
                 hasVisibleProducts = true;
+                highlightMatch(nameEl, searchTerm);
             } else {
                 card.style.display = 'none';
+                highlightMatch(nameEl, '');
             }
         });
 
-        // Hide category if no products match
         category.style.display = hasVisibleProducts ? 'block' : 'none';
     });
 }
 
-// Update statistics
+function highlightMatch(nameEl, term) {
+    const raw = nameEl.dataset.rawName || nameEl.textContent;
+    if (!term) {
+        nameEl.innerHTML = raw;
+        return;
+    }
+    const regex = new RegExp(`(${escapeRegExp(term)})`, 'ig');
+    nameEl.innerHTML = raw.replace(regex, '<mark>$1</mark>');
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function updateActiveFilters(searchTerm, categoryFilter) {
+    if (!activeFiltersEl) return;
+
+    const filters = [];
+    if (categoryFilter && categoryFilter !== 'all') {
+        filters.push(categoryLabels[categoryFilter] || categoryFilter);
+    }
+    if (searchTerm) {
+        filters.push(`“${searchTerm}”`);
+    }
+
+    activeFiltersEl.textContent = filters.length
+        ? `Filtering by ${filters.join(' · ')}`
+        : 'Showing all products';
+}
+
 function updateStats() {
     let visibleProducts = 0;
     let visibleCategories = 0;
@@ -73,7 +127,6 @@ function updateStats() {
     if (categoryCountEl) categoryCountEl.textContent = visibleCategories;
 }
 
-// Back to top button
 const backToTopBtn = document.getElementById('backToTop');
 
 window.addEventListener('scroll', function() {
@@ -91,12 +144,18 @@ backToTopBtn.addEventListener('click', function() {
     });
 });
 
-// Initialize stats on page load
 document.addEventListener('DOMContentLoaded', function() {
-    updateStats();
+    lazyLoadImages();
+    handleFilterChange();
 });
 
-// Smooth scroll for links
+function lazyLoadImages() {
+    document.querySelectorAll('.product-card img').forEach(img => {
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('decoding', 'async');
+    });
+}
+
 document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
         e.preventDefault();
